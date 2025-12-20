@@ -3,8 +3,9 @@
  * Handles API routes, WebSocket terminal connections, and static file serving.
  */
 import type { Subprocess, ServerWebSocket } from "bun";
-import { serve } from "bun";
-import { db, initDB } from "./server/database/database.ts";
+import { serve, Glob } from "bun";
+import { db, initDB, insertEmbedding, searchVectors } from "./server/database/database.ts";
+import { generateEmbedding } from "./server/ai/embeddings.ts";
 import { listWorktrees, createWorktree } from "./server/git/git.ts";
 import index from "./index.html";
 
@@ -148,6 +149,45 @@ const server = serve<WebSocketData>({
         } catch (error) {
           return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
         }
+      },
+    },
+
+    "/api/ai/index": {
+      async POST() {
+        const glob = new Glob("src/**/*.{ts,tsx}");
+        let count = 0;
+
+        for await (const file of glob.scan({ cwd: "." })) {
+          if (
+            file.includes("node_modules") ||
+            file.split("/").some((p) => p.startsWith("."))
+          ) {
+            continue;
+          }
+
+          const content = await Bun.file(file).text();
+          // Skip empty files to avoid embedding errors
+          if (!content.trim()) continue;
+
+          const embedding = await generateEmbedding(content);
+          const id = crypto.randomUUID();
+          insertEmbedding(id, file, content, embedding);
+          count++;
+        }
+
+        return Response.json({ success: true, indexed: count });
+      },
+    },
+
+    "/api/ai/search": {
+      async POST(req: Request) {
+        const { query, limit } = (await req.json()) as {
+          query: string;
+          limit?: number;
+        };
+        const embedding = await generateEmbedding(query);
+        const results = searchVectors(embedding, limit ?? 5);
+        return Response.json(results);
       },
     },
 

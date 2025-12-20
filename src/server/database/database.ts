@@ -5,3 +5,4 @@
  */
 export * from "./sqlite.ts";
 export * from "./schema.ts";
+export * from "./vectors.ts";

@@ -42,6 +42,7 @@
 
 ## System Components
 - **Database**: `src/server/database/` (SQLite + Vectors)
+- **AI Engine**: `src/server/ai/` (Embeddings & Search)
 - **Git Manager**: `src/server/git/` (Worktree isolation)
 - **Visual Graph**: `src/components/canvas/` (@xyflow/react)
 - **Terminal**: `src/components/terminal/` (xterm.js + WebSockets)
