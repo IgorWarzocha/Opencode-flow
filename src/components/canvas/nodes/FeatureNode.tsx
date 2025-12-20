@@ -1,10 +1,11 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { memo } from 'react';
 
-export type FeatureNodeData = {
+export interface FeatureNodeData {
   title: string;
   status: 'pending' | 'in-progress' | 'done';
-};
+  [key: string]: unknown;
+}
 
 export type FeatureNode = Node<FeatureNodeData, 'feature'>;
 
