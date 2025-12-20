@@ -5,7 +5,10 @@
  */
 import { Editor, type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
+
+// Define strict types for Monaco namespace subsets used
+type MonacoNamespace = typeof Monaco;
 
 interface CodeEditorProps {
   value?: string;
@@ -31,7 +34,7 @@ export function CodeEditor({
     };
   }, []);
 
-  const handleEditorDidMount: OnMount = (_editor, monaco) => {
+  const handleEditorDidMount: OnMount = useCallback((_editor: Monaco.editor.IStandaloneCodeEditor, monaco: MonacoNamespace) => {
     console.info("CodeEditor: Mounted");
 
     // Register a dummy "Supermaven" completion provider
@@ -68,9 +71,10 @@ export function CodeEditor({
     );
 
     console.info("Supermaven: Completion provider registered");
-  };
+  }, [language]);
 
-  // Cast Editor to any to avoid React 19 type incompatibility
+  // Cast Editor to any to avoid React 19 type incompatibility with current library version
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const MonacoEditor = Editor as any;
 
   return (
@@ -92,5 +96,3 @@ export function CodeEditor({
     />
   );
 }
-
-

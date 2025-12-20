@@ -48,8 +48,23 @@ export const listWorktrees = async (): Promise<Worktree[]> => {
   return worktrees;
 };
 
-export const createWorktree = async (branch: string, path: string) => {
-  const proc = Bun.spawn(["git", "worktree", "add", path, branch], {
+export const createWorktree = async (
+  branch: string,
+  path: string,
+  options: { createBranch?: boolean; baseBranch?: string } = {}
+) => {
+  const args = ["git", "worktree", "add"];
+
+  if (options.createBranch) {
+    args.push("-b", branch, path);
+    if (options.baseBranch) {
+      args.push(options.baseBranch);
+    }
+  } else {
+    args.push(path, branch);
+  }
+
+  const proc = Bun.spawn(args, {
     stdout: "pipe",
     stderr: "pipe",
   });

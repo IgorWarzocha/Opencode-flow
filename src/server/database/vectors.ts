@@ -53,7 +53,7 @@ export const insertEmbedding = (
  */
 export const searchVectors = (
   vector: number[],
-  limit: number = 10
+  limit = 10
 ): CodeEmbedding[] => {
   const vectorFloat32 = new Float32Array(vector);
   const serializedVector = serializeFloat32Array(vectorFloat32);

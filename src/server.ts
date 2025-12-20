@@ -2,11 +2,13 @@
  * Main HTTP Server - Entry point for the Bun-based backend.
  * Handles API routes, WebSocket terminal connections, and static file serving.
  */
-import type { Subprocess, ServerWebSocket } from "bun";
+import type { ServerWebSocket } from "bun";
 import { serve, Glob } from "bun";
 import { db, initDB, insertEmbedding, searchVectors } from "./server/database/database.ts";
 import { generateEmbedding } from "./server/ai/embeddings.ts";
-import { listWorktrees, createWorktree } from "./server/git/git.ts";
+import { listWorktrees, createWorktree, getWorktreeDiff, mergeSessionBranch } from "./server/git/git.ts";
+import { createSession, listSessions, getSession, deleteSession, archiveSession } from "./server/session/session.ts";
+import { spawnAgentProcess, type AgentProcess } from "./server/agent/spawner.ts";
 import index from "./index.html";
 
 // Initialize database and migrations
@@ -35,10 +37,12 @@ interface EdgeRow {
 
 /**
  * Data attached to each WebSocket connection.
- * Holds the spawned bash subprocess for the terminal.
+ * Holds the spawned agent subprocess for the terminal.
  */
 interface WebSocketData {
-  proc?: Subprocess<"pipe", "pipe", "pipe">;
+  proc?: AgentProcess | undefined;
+  sessionId?: string | undefined;
+  worktreePath?: string | undefined;
 }
 
 /**
@@ -191,8 +195,94 @@ const server = serve<WebSocketData>({
       },
     },
 
+    "/api/sessions": {
+      GET() {
+        return Response.json(listSessions());
+      },
+      async POST(req: Request) {
+        const { name, context } = (await req.json()) as {
+          name: string;
+          context?: Record<string, unknown>;
+        };
+        return Response.json(await createSession(name, context));
+      },
+    },
+
+    "/api/sessions/:id": (req: Request & { params: { id: string } }) => {
+      const { id } = req.params;
+      if (req.method === "GET") {
+        const session = getSession(id);
+        if (!session) {
+          return new Response("Session not found", { status: 404 });
+        }
+        return Response.json(session);
+      }
+      if (req.method === "DELETE") {
+        deleteSession(id);
+        return new Response(null, { status: 204 });
+      }
+      return new Response("Method not allowed", { status: 405 });
+    },
+
+    "/api/sessions/:id/diff": async (req: Request & { params: { id: string } }) => {
+      const { id } = req.params;
+      const session = getSession(id);
+      if (!session) {
+        return new Response("Session not found", { status: 404 });
+      }
+      if (!session.worktree_path) {
+        return new Response("Session has no worktree", { status: 400 });
+      }
+      try {
+        const diff = await getWorktreeDiff(session.worktree_path);
+        return new Response(diff);
+      } catch (error) {
+        return new Response(String(error), { status: 500 });
+      }
+    },
+
+    "/api/sessions/:id/merge": async (req: Request & { params: { id: string } }) => {
+      const { id } = req.params;
+      const session = getSession(id);
+      
+      if (!session) return new Response("Session not found", { status: 404 });
+      if (!session.worktree_path) return new Response("Session invalid (no worktree)", { status: 400 });
+
+      try {
+        // 1. Merge
+        const result = await mergeSessionBranch(session.worktree_path, "main");
+        
+        if (result.status === "error") {
+            return new Response(result.reason, { status: 500 });
+        }
+        if (result.status === "conflict") {
+            return new Response(`Merge conflict in: ${result.files.join(", ")}`, { status: 409 });
+        }
+
+        // 2. Archive on success
+        await archiveSession(id, "merged");
+        
+        return Response.json({ success: true, message: "Merged successfully" });
+      } catch (error) {
+        return new Response(String(error), { status: 500 });
+      }
+    },
+
     "/api/terminal": (req: Request) => {
-      if (server.upgrade(req, { data: {} })) {
+
+      const url = new URL(req.url);
+      const sessionId = url.searchParams.get("sessionId");
+
+      let worktreePath: string | undefined;
+
+      if (sessionId) {
+        const session = getSession(sessionId);
+        if (session?.worktree_path) {
+          worktreePath = session.worktree_path;
+        }
+      }
+
+      if (server.upgrade(req, { data: { sessionId: sessionId ?? undefined, worktreePath } })) {
         return undefined;
       }
       return new Response("WebSocket upgrade failed", { status: 500 });
@@ -201,15 +291,18 @@ const server = serve<WebSocketData>({
 
   websocket: {
     open(ws) {
-      const proc = Bun.spawn(["bash"], {
-        stdin: "pipe",
-        stdout: "pipe",
-        stderr: "pipe",
-        env: {
-          ...process.env,
-          TERM: "xterm-256color",
-        },
-      });
+      const { sessionId, worktreePath } = ws.data;
+
+      // Use spawnAgentProcess for session-bound terminals, fallback to plain bash
+      const proc = sessionId && worktreePath
+        ? spawnAgentProcess(worktreePath, sessionId)
+        : Bun.spawn(["bash"], {
+            stdin: "pipe",
+            stdout: "pipe",
+            stderr: "pipe",
+            cwd: process.cwd(),
+            env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
+          });
 
       ws.data.proc = proc;
 

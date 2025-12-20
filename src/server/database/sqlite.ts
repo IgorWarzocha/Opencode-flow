@@ -11,9 +11,9 @@ export const db = new Database("flow.sqlite", { create: true });
 export const initDB = () => {
   try {
     sqliteVec.load(db);
-    console.log("sqlite-vec loaded successfully.");
+    console.info("sqlite-vec loaded successfully.");
   } catch (error) {
-    console.error("Failed to load sqlite-vec extension:", error);
+    console.warn("Failed to load sqlite-vec extension:", error);
     // Continue without vector support if it fails, or throw? 
     // Given it's a core feature, maybe we should log but proceed with non-vector tables?
     // The user requested robustness.
@@ -21,9 +21,9 @@ export const initDB = () => {
 
   try {
     initSchema(db);
-    console.log("Database schema initialized.");
+    console.info("Database schema initialized.");
   } catch (error) {
-    console.error("Failed to initialize database schema:", error);
+    console.warn("Failed to initialize database schema:", error);
     throw error;
   }
 };

@@ -4,6 +4,6 @@
  */
 import Editor from "@monaco-editor/react";
 
-export const CodeEditor = () => {
+export const BasicMonacoEditor = () => {
   return <Editor height="90vh" defaultLanguage="typescript" />;
 };

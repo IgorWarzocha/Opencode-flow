@@ -1,0 +1,1 @@
+The session UI provides a focused panel for listing, creating, loading, and deleting sessions. It connects to the server session endpoints and keeps the current active session in client state. Use this module whenever session workflows need to be surfaced in the interface.

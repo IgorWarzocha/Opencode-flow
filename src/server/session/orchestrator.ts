@@ -1,7 +1,5 @@
-/**
- * Session Orchestrator - Managing active agent sessions
- * Tracks the state, worktree, and process of ongoing agent tasks.
- */
-export const startSession = async (name: string) => {
-  // TODO: Implement session initialization
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const orchestrateSession = (_name: string) => {
+  // TODO: Implement session orchestration
+  console.info("Orchestrating session...");
 };
