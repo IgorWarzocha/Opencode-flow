@@ -1,9 +1,5 @@
-/**
- * App composes the core workspace layout with canvas, editor, and terminal panes.
- * It owns UI toggles for side panels and keeps the active session selection.
- * The header exposes entry points for session management and AI tools.
- */
 import { useState, useEffect } from "react";
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { GraphCanvas } from "./components/canvas/canvas";
 import { CodeEditor } from "./components/editor/editor";
 import { DiffViewer } from "./components/editor/DiffViewer";
@@ -21,8 +17,6 @@ import {
   Book,
   Bot,
   Terminal as TerminalIcon,
-  ChevronDown,
-  ChevronUp,
   LayoutTemplate,
   FileCode,
   Columns,
@@ -31,27 +25,31 @@ import "./index.css";
 import { ThemeProvider } from "./components/theme/theme-provider";
 import { ThemeToggle } from "./components/theme/theme-toggle";
 import { OpenCodeAssistantPanel } from "./components/opencode-assistant/opencode-assistant";
+import { cn } from "./lib/utils";
 
 const headerButtonClass = (isActive: boolean) =>
-  `text-sm px-3 py-1 rounded-md transition-colors border border-transparent ${
+  cn(
+    "text-sm px-3 py-1 rounded-md transition-colors border border-transparent",
     isActive
       ? "bg-primary text-primary-foreground"
-      : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-  }`;
+      : "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
+  );
 
 const sidebarTabClass = (isActive: boolean) =>
-  `p-2 rounded-md transition-colors flex justify-center ${
+  cn(
+    "p-2 rounded-md transition-colors flex justify-center",
     isActive
       ? "text-primary bg-accent/50 shadow-sm"
-      : "text-muted-foreground hover:text-foreground hover:bg-accent"
-  }`;
+      : "text-muted-foreground hover:text-foreground hover:bg-accent",
+  );
 
 const viewModeButtonClass = (isActive: boolean) =>
-  `p-1.5 rounded-sm transition-all ${
+  cn(
+    "p-1.5 rounded-sm transition-all",
     isActive
       ? "bg-accent text-accent-foreground shadow-sm"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-  }`;
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
 
 type SidebarView = "files" | "git" | "sessions" | "docs";
 type CenterMode = "graph" | "editor" | "split";
@@ -118,7 +116,7 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="w-screen h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <div className="fixed inset-0 bg-background text-foreground flex flex-col overflow-hidden">
         {/* Header */}
         <header className="border-b border-border px-4 py-2 bg-muted/20 h-12 flex items-center shrink-0 justify-between">
           <h1 className="text-lg font-bold flex items-center gap-2">OpenCode Flow</h1>
@@ -139,7 +137,7 @@ export function App() {
         </header>
 
         {/* Main Body */}
-        <div className="flex-1 flex flex-row overflow-hidden">
+        <div className="flex-1 flex flex-row overflow-hidden min-h-0">
           {/* Left Strip */}
           <div className="w-12 flex flex-col items-center py-2 border-r border-border bg-muted/10 gap-2 shrink-0 z-10">
             <button
@@ -170,137 +168,178 @@ export function App() {
             >
               <Book className="w-5 h-5" />
             </button>
-            <div className="mt-auto" />
-            <ThemeToggle />
+
+            <div className="mt-auto flex flex-col items-center gap-2">
+              <button
+                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+                className={sidebarTabClass(isTerminalOpen)}
+                title="Toggle Terminal"
+              >
+                <TerminalIcon className="w-5 h-5" />
+              </button>
+              <ThemeToggle />
+            </div>
           </div>
 
-          {/* LHS Panel (Sidebar Content) */}
-          {isSidebarOpen && (
-            <div className="w-72 border-r border-border bg-background flex flex-col shrink-0 transition-all">
-              {sidebarView === "files" && (
-                <FileBrowser
-                  key={workspaceRefresh}
-                  onFileSelect={handleFileSelect}
-                  className="border-none w-full h-full"
-                />
-              )}
-              {sidebarView === "git" && <SourceControl className="border-none w-full h-full" />}
-              {sidebarView === "sessions" && (
-                <SessionSidebar
-                  activeSessionId={activeSessionId}
-                  onSelectSession={setActiveSessionId}
-                  className="border-none w-full h-full"
-                />
-              )}
-              {sidebarView === "docs" && (
-                <DocSidebar onFileSelect={handleFileSelect} className="border-none w-full h-full" />
-              )}
-            </div>
-          )}
-
-          {/* Center & Right Area */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {/* Editor/Graph + RHS Panel Row */}
-            <div className="flex-1 flex flex-row overflow-hidden">
-              {/* Center: Graph & Editor */}
-              <div className="flex-1 flex flex-col overflow-hidden min-w-0 border-r border-border">
-                {/* Center Toolbar */}
-                <div className="h-9 border-b border-border bg-background flex items-center justify-between px-2 shrink-0">
-                  <div className="text-xs text-muted-foreground font-medium px-2">
-                    {currentFile || "No file selected"}
+          {/* Resizable Layout */}
+          <PanelGroup orientation="horizontal" className="flex-1 min-w-0">
+            {isSidebarOpen && (
+              <>
+                <Panel
+                  defaultSize={20}
+                  minSize={15}
+                  collapsible
+                  id="sidebar-panel"
+                  className="flex flex-col h-full overflow-hidden"
+                >
+                  <div className="w-full h-full bg-background flex flex-col">
+                    {sidebarView === "files" && (
+                      <FileBrowser
+                        key={workspaceRefresh}
+                        onFileSelect={handleFileSelect}
+                        className="border-none w-full h-full"
+                      />
+                    )}
+                    {sidebarView === "git" && (
+                      <SourceControl className="border-none w-full h-full" />
+                    )}
+                    {sidebarView === "sessions" && (
+                      <SessionSidebar
+                        activeSessionId={activeSessionId}
+                        onSelectSession={setActiveSessionId}
+                        className="border-none w-full h-full"
+                      />
+                    )}
+                    {sidebarView === "docs" && (
+                      <DocSidebar
+                        onFileSelect={handleFileSelect}
+                        className="border-none w-full h-full"
+                      />
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-md border border-border/50">
-                    <button
-                      onClick={() => setCenterMode("graph")}
-                      className={viewModeButtonClass(centerMode === "graph")}
-                      title="Graph View"
-                    >
-                      <LayoutTemplate className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setCenterMode("split")}
-                      className={viewModeButtonClass(centerMode === "split")}
-                      title="Split View"
-                    >
-                      <Columns className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setCenterMode("editor")}
-                      className={viewModeButtonClass(centerMode === "editor")}
-                      title="Editor View"
-                    >
-                      <FileCode className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                </Panel>
+                <PanelResizeHandle className="w-1 bg-border/50 hover:bg-primary transition-colors focus:outline-none" />
+              </>
+            )}
 
-                {/* Content Area */}
-                <div className="flex-1 flex flex-row overflow-hidden relative">
-                  {(centerMode === "graph" || centerMode === "split") && (
-                    <div
-                      className={`${
-                        centerMode === "split" ? "w-1/2 border-r border-border" : "w-full"
-                      } h-full relative`}
-                    >
-                      <GraphCanvas />
-                    </div>
-                  )}
-                  {(centerMode === "editor" || centerMode === "split") && (
-                    <div
-                      className={`${
-                        centerMode === "split" ? "w-1/2" : "w-full"
-                      } h-full relative flex flex-col`}
-                    >
-                      <div className="flex-1 relative">
-                        <CodeEditor
-                          value={code}
-                          onChange={(val) => setCode(val ?? "")}
-                          language={getLanguage(currentFile)}
-                        />
+            {/* Center Panel Group */}
+            <Panel
+              defaultSize={50}
+              minSize={30}
+              id="center-panel"
+              className="flex flex-col h-full overflow-hidden"
+            >
+              <PanelGroup orientation="vertical" className="h-full w-full">
+                {/* Editor/Graph Area */}
+                <Panel
+                  defaultSize={isTerminalOpen ? 75 : 100}
+                  minSize={20}
+                  id="editor-graph-panel"
+                  className="flex flex-col h-full overflow-hidden"
+                >
+                  <div className="flex flex-col h-full w-full overflow-hidden">
+                    {/* Center Toolbar */}
+                    <div className="h-9 border-b border-border bg-background flex items-center justify-between px-2 shrink-0">
+                      <div className="text-xs text-muted-foreground font-medium px-2">
+                        {currentFile || "No file selected"}
+                      </div>
+                      <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-md border border-border/50">
+                        <button
+                          onClick={() => setCenterMode("graph")}
+                          className={viewModeButtonClass(centerMode === "graph")}
+                          title="Graph View"
+                        >
+                          <LayoutTemplate className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setCenterMode("split")}
+                          className={viewModeButtonClass(centerMode === "split")}
+                          title="Split View"
+                        >
+                          <Columns className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setCenterMode("editor")}
+                          className={viewModeButtonClass(centerMode === "editor")}
+                          title="Editor View"
+                        >
+                          <FileCode className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* RHS Panel: Assistant */}
-              {isRightPanelOpen && (
-                <div className="w-[300px] border-l border-border bg-background flex flex-col shrink-0">
+                    {/* Editor Content */}
+                    <div className="flex-1 flex flex-row overflow-hidden relative">
+                      {(centerMode === "graph" || centerMode === "split") && (
+                        <div
+                          className={cn(
+                            "h-full relative",
+                            centerMode === "split" ? "w-1/2 border-r border-border" : "w-full",
+                          )}
+                        >
+                          <GraphCanvas />
+                        </div>
+                      )}
+                      {(centerMode === "editor" || centerMode === "split") && (
+                        <div
+                          className={cn(
+                            "h-full relative flex flex-col",
+                            centerMode === "split" ? "w-1/2" : "w-full",
+                          )}
+                        >
+                          <div className="flex-1 relative">
+                            <CodeEditor
+                              value={code}
+                              onChange={(val) => setCode(val ?? "")}
+                              language={getLanguage(currentFile)}
+                              // Make sure editor resizes correctly
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Panel>
+
+                {/* Terminal Panel */}
+                {isTerminalOpen && (
+                  <>
+                    <PanelResizeHandle className="h-1 bg-border/50 hover:bg-primary transition-colors focus:outline-none" />
+                    <Panel
+                      defaultSize={25}
+                      collapsible
+                      minSize={10}
+                      id="terminal-panel"
+                      className="flex flex-col h-full overflow-hidden"
+                    >
+                      <div className="h-full w-full overflow-hidden bg-background">
+                        <Terminal sessionId={activeSessionId} />
+                      </div>
+                    </Panel>
+                  </>
+                )}
+              </PanelGroup>
+            </Panel>
+
+            {/* Right Panel (Assistant) */}
+            {isRightPanelOpen && (
+              <>
+                <PanelResizeHandle className="w-1 bg-border/50 hover:bg-primary transition-colors focus:outline-none" />
+                <Panel
+                  defaultSize={30}
+                  minSize={20}
+                  collapsible
+                  id="assistant-panel"
+                  className="flex flex-col h-full overflow-hidden"
+                >
                   <OpenCodeAssistantPanel
                     isOpen={isRightPanelOpen}
                     onClose={() => setIsRightPanelOpen(false)}
                   />
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Terminal (Collapsible) */}
-            <div
-              className={`border-t border-border shrink-0 bg-background flex flex-col transition-all duration-300 ${isTerminalOpen ? "h-[250px]" : "h-8"}`}
-            >
-              <div
-                className="flex items-center justify-between px-2 py-1 bg-muted/10 border-b border-border cursor-pointer hover:bg-muted/20 select-none h-8"
-                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                  <TerminalIcon className="w-3.5 h-3.5" />
-                  <span>Terminal</span>
-                </div>
-                <button className="text-muted-foreground">
-                  {isTerminalOpen ? (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </div>
-              {isTerminalOpen && (
-                <div className="flex-1 relative overflow-hidden">
-                  <Terminal sessionId={activeSessionId} />
-                </div>
-              )}
-            </div>
-          </div>
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
 
           {/* Right Strip */}
           <div className="w-12 flex flex-col items-center py-2 border-l border-border bg-muted/10 gap-2 shrink-0 z-10">

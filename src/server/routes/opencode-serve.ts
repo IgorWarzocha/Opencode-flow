@@ -240,4 +240,46 @@ export const opencodeServeRoutes = {
       return Response.json(toAssistantMessage(data as Record<string, unknown>));
     },
   },
+  "/api/opencode/assistant/events": {
+    async GET() {
+      const directory = getWorkspaceRoot();
+      const { client, error: clientError } = await getServeClient(directory);
+
+      if (!client) {
+        return new Response(clientError ?? "OpenCode serve unavailable.", { status: 502 });
+      }
+
+      const result = await client.event.subscribe();
+
+      // SSE results have a different shape - check for stream property directly
+      if (!result || typeof result !== "object" || !("stream" in result)) {
+        return new Response("Failed to subscribe to events.", { status: 502 });
+      }
+
+      const eventStream = result.stream as AsyncIterable<unknown>;
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          try {
+            for await (const event of eventStream) {
+              const payload = `data: ${JSON.stringify(event)}\n\n`;
+              controller.enqueue(encoder.encode(payload));
+            }
+            controller.close();
+          } catch (e) {
+            controller.error(e);
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    },
+  },
 };
