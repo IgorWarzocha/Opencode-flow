@@ -3,21 +3,24 @@
  * Handles API routes, WebSocket terminal connections, and static file serving.
  */
 import { serve } from "bun";
-import { initDB } from "./server/database/database";
+import { cwd } from "node:process";
+import { initDB } from "./server/database/database.ts";
 import index from "./index.html";
-import { getSession } from "./server/session/session";
+import { getSession } from "./server/session/session.ts";
 
 // Route modules
-import { systemRoutes } from "./server/routes/system";
-import { fileRoutes } from "./server/routes/files";
-import { graphRoutes } from "./server/routes/graph";
-import { aiRoutes } from "./server/routes/ai";
-import { sessionRoutes } from "./server/routes/session";
-import { gitRoutes } from "./server/routes/git";
-import { terminalSocket, type WebSocketData } from "./server/socket/terminal";
+import { systemRoutes } from "./server/routes/system.ts";
+import { fileRoutes } from "./server/routes/files.ts";
+import { graphRoutes } from "./server/routes/graph.ts";
+import { aiRoutes } from "./server/routes/ai.ts";
+import { sessionRoutes } from "./server/routes/session.ts";
+import { gitRoutes } from "./server/routes/git.ts";
+import { opencodeRoutes } from "./server/routes/opencode.ts";
+import { opencodeServeRoutes } from "./server/routes/opencode-serve.ts";
+import { terminalSocket, type WebSocketData } from "./server/socket/terminal.ts";
 
-// Initialize database
-initDB();
+// Initialize database for current workspace
+await initDB(cwd());
 
 const server = serve<WebSocketData>({
   routes: {
@@ -30,6 +33,8 @@ const server = serve<WebSocketData>({
     ...aiRoutes,
     ...sessionRoutes,
     ...gitRoutes,
+    ...opencodeRoutes,
+    ...opencodeServeRoutes,
 
     // Terminal Upgrade Route
     "/api/terminal": (req: Request) => {

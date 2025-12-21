@@ -5,7 +5,8 @@
  */
 import { Editor, type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { useTheme } from "../theme/theme-provider";
 
 // Define strict types for Monaco namespace subsets used
 type MonacoNamespace = typeof Monaco;
@@ -16,13 +17,27 @@ interface CodeEditorProps {
   language?: string;
 }
 
-export function CodeEditor({
-  value,
-  onChange,
-  language = "typescript",
-}: CodeEditorProps) {
+export function CodeEditor({ value, onChange, language = "typescript" }: CodeEditorProps) {
+  const { theme } = useTheme();
+  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    if (theme === "system") {
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      setResolvedTheme(media.matches ? "dark" : "light");
+      const listener = (e: MediaQueryListEvent) => setResolvedTheme(e.matches ? "dark" : "light");
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    }
+
+    setResolvedTheme(theme);
+    return undefined;
+  }, [theme]);
+
   // Refs to manage lifecycle of Monaco disposables
   const completionProviderRef = useRef<Monaco.IDisposable | null>(null);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Cleanup provider on unmount
   useEffect(() => {
@@ -34,17 +49,39 @@ export function CodeEditor({
     };
   }, []);
 
-  const handleEditorDidMount: OnMount = useCallback((_editor: Monaco.editor.IStandaloneCodeEditor, monaco: MonacoNamespace) => {
-    console.info("CodeEditor: Mounted");
+  // Custom ResizeObserver to handle layout changes without crashing
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-    // Register a dummy "Supermaven" completion provider
-    // In a real implementation, this would connect to the Supermaven sidecar/agent
-    completionProviderRef.current = monaco.languages.registerCompletionItemProvider(
-      language,
-      {
+    const resizeObserver = new ResizeObserver((entries) => {
+      // Use requestAnimationFrame to avoid "ResizeObserver loop completed with undelivered notifications"
+      // and ensure layout happens in the next frame
+      window.requestAnimationFrame(() => {
+        if (!Array.isArray(entries) || !entries.length) return;
+        if (editorRef.current) {
+          editorRef.current.layout();
+        }
+      });
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, monaco: MonacoNamespace) => {
+      console.info("CodeEditor: Mounted");
+      editorRef.current = editor;
+
+      // Register a dummy "Supermaven" completion provider
+      // In a real implementation, this would connect to the Supermaven sidecar/agent
+      completionProviderRef.current = monaco.languages.registerCompletionItemProvider(language, {
         provideCompletionItems: (
           model: Monaco.editor.ITextModel,
-          position: Monaco.Position
+          position: Monaco.Position,
         ): Monaco.languages.ProviderResult<Monaco.languages.CompletionList> => {
           const word = model.getWordUntilPosition(position);
           const range: Monaco.IRange = {
@@ -67,32 +104,35 @@ export function CodeEditor({
             ],
           };
         },
-      }
-    );
+      });
 
-    console.info("Supermaven: Completion provider registered");
-  }, [language]);
+      console.info("Supermaven: Completion provider registered");
+    },
+    [language],
+  );
 
   // Cast Editor to any to avoid React 19 type incompatibility with current library version
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const MonacoEditor = Editor as any;
 
   return (
-    <MonacoEditor
-      height="100%"
-      theme="vs-dark"
-      defaultLanguage={language}
-      value={value}
-      onChange={onChange}
-      onMount={handleEditorDidMount}
-      options={{
-        minimap: { enabled: true },
-        lineNumbers: "on",
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 14,
-      }}
-    />
+    <div ref={containerRef} className="w-full h-full overflow-hidden">
+      <MonacoEditor
+        height="100%"
+        theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
+        defaultLanguage={language}
+        value={value}
+        onChange={onChange}
+        onMount={handleEditorDidMount}
+        options={{
+          minimap: { enabled: true },
+          lineNumbers: "on",
+          scrollBeyondLastLine: false,
+          automaticLayout: false, // We handle this manually now
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 14,
+        }}
+      />
+    </div>
   );
 }

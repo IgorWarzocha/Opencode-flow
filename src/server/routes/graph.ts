@@ -2,7 +2,7 @@
  * Graph Database Routes
  * Handles CRUD operations for nodes and edges in the visual graph.
  */
-import { db } from "../database/database";
+import { getDB } from "../database/database.ts";
 
 interface NodeRow {
   id: string;
@@ -21,12 +21,12 @@ interface EdgeRow {
 export const graphRoutes = {
   "/api/graph": {
     GET() {
-      const rows = db.query("SELECT * FROM nodes").all() as NodeRow[];
+      const rows = getDB().query("SELECT * FROM nodes").all() as NodeRow[];
       const nodes = rows.map((node) => ({
         ...node,
         ...(JSON.parse(node.content ?? "{}") as Record<string, unknown>),
       }));
-      const edges = db.query("SELECT * FROM edges").all() as EdgeRow[];
+      const edges = getDB().query("SELECT * FROM edges").all() as EdgeRow[];
       return Response.json({ nodes, edges });
     },
   },
@@ -40,9 +40,11 @@ export const graphRoutes = {
       };
       const id = crypto.randomUUID();
       const content = JSON.stringify({ position, data });
-      db.query(
-        "INSERT INTO nodes (id, type, content, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-      ).run(id, type, content);
+      getDB()
+        .query(
+          "INSERT INTO nodes (id, type, content, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+        )
+        .run(id, type, content);
       return Response.json({ id, type, position, data });
     },
   },
@@ -54,9 +56,11 @@ export const graphRoutes = {
         target: string;
       };
       const id = crypto.randomUUID();
-      db.query(
-        "INSERT INTO edges (id, source, target, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-      ).run(id, source, target);
+      getDB()
+        .query(
+          "INSERT INTO edges (id, source, target, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+        )
+        .run(id, source, target);
       return Response.json({ id, source, target });
     },
   },

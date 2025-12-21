@@ -4,8 +4,10 @@
  */
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve, relative } from "node:path";
-import { getWorkspaceRoot, setWorkspaceRoot } from "../workspace";
-import { isGitRepo, initGitRepo } from "../git/git";
+import { getWorkspaceRoot, setWorkspaceRoot } from "../workspace.ts";
+import { isGitRepo, initGitRepo } from "../git/git.ts";
+import { switchWorkspaceDB } from "../database/database.ts";
+import { syncSessions } from "../opencode/opencode.ts";
 
 export const fileRoutes = {
   "/api/files": {
@@ -86,6 +88,12 @@ export const fileRoutes = {
         const newRoot = resolve(path);
         setWorkspaceRoot(newRoot);
 
+        // Switch database to the new workspace
+        await switchWorkspaceDB(newRoot);
+
+        // Sync OpenCode sessions for this workspace
+        const syncResult = await syncSessions(newRoot);
+
         let gitInitialized = false;
 
         if (ensureGit) {
@@ -99,6 +107,8 @@ export const fileRoutes = {
         return Response.json({
           path: newRoot,
           gitInitialized,
+          sessionsImported: syncResult.imported,
+          sessionsSkipped: syncResult.skipped,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid path or access denied";
@@ -128,4 +138,40 @@ export const fileRoutes = {
       return Response.json({ success: true });
     },
   },
+
+  "/api/files/search": {
+    async GET(req: Request): Promise<Response> {
+      const url = new URL(req.url);
+      const pattern = url.searchParams.get("pattern");
+      const rootParam = url.searchParams.get("root");
+
+      if (!pattern) {
+        return new Response("Query parameter 'pattern' is required", { status: 400 });
+      }
+
+      const workspaceRoot = getWorkspaceRoot();
+      const searchRoot = rootParam ? resolve(workspaceRoot, rootParam) : workspaceRoot;
+
+      // Security: ensure search root stays within workspace
+      if (!searchRoot.startsWith(workspaceRoot)) {
+        return new Response("Access denied: Cannot search outside workspace root", { status: 403 });
+      }
+
+      const glob = new Bun.Glob(pattern);
+      const files: string[] = [];
+
+      for await (const match of glob.scan({ cwd: searchRoot })) {
+        // Return paths relative to workspace root for consistency
+        const relativePath = rootParam ? join(rootParam, match) : match;
+        files.push(relativePath);
+      }
+
+      return Response.json({ files } satisfies FileSearchResponse);
+    },
+  },
+};
+
+/** Response shape for file search endpoint */
+type FileSearchResponse = {
+  files: string[];
 };

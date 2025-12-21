@@ -4,3 +4,4 @@
  */
 
 export { SessionManager } from "./SessionManager";
+export { SessionSidebar } from "./SessionSidebar";

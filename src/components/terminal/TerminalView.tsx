@@ -3,12 +3,13 @@
  * Implements a web-based terminal using xterm.js and xterm-addon-fit.
  * Connects to a WebSocket for real-time bidirectional communication.
  */
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import 'xterm/css/xterm.css';
+import { useEffect, useRef, useState } from "react";
+import { Terminal as XTerm } from "xterm";
+import { FitAddon } from "xterm-addon-fit";
+import "xterm/css/xterm.css";
+import { useTheme } from "../theme/theme-provider";
 
 /**
  * Safely attempts to fit the terminal, checking renderer readiness.
@@ -21,7 +22,7 @@ function safeFit(term: XTerm, fitAddon: FitAddon): boolean {
   if (!core._core?._renderService?.dimensions) {
     return false;
   }
-  
+
   try {
     fitAddon.fit();
     return true;
@@ -31,12 +32,13 @@ function safeFit(term: XTerm, fitAddon: FitAddon): boolean {
 }
 
 export function Terminal({ sessionId }: { sessionId?: string | null }) {
+  const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const isInitializedRef = useRef(false);
-  
+
   // State to trigger re-render when container becomes visible
   const [isContainerReady, setIsContainerReady] = useState(false);
 
@@ -76,14 +78,15 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
     // Initialize xterm.js
     const term = new XTerm({
       cursorBlink: true,
-      cursorStyle: 'block',
+      cursorStyle: "block",
       theme: {
-        background: '#09090b', // zinc-950 matches the container
-        foreground: '#f4f4f5', // zinc-100
-        cursor: '#f4f4f5',
-        selectionBackground: 'rgba(255, 255, 255, 0.3)',
+        background: "#09090b", // zinc-950 matches the container
+        foreground: "#f4f4f5", // zinc-100
+        cursor: "#f4f4f5",
+        selectionBackground: "rgba(255, 255, 255, 0.3)",
       },
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontFamily:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       fontSize: 14,
       allowProposedApi: true,
     });
@@ -109,38 +112,40 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
         requestAnimationFrame(attemptFit);
       }
     };
-    
+
     // Start attempting fit on next frame (after renderer initializes)
     const rafId = requestAnimationFrame(attemptFit);
 
     // Initialize WebSocket connection
-    const wsUrl = sessionId 
+    const wsUrl = sessionId
       ? `ws://localhost:3000/api/terminal?sessionId=${sessionId}`
-      : 'ws://localhost:3000/api/terminal';
-      
+      : "ws://localhost:3000/api/terminal";
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      term.write(`\r\n\x1b[32mConnected to terminal session${sessionId ? ` (${sessionId.slice(0, 8)})` : ''}...\x1b[0m\r\n`);
+      term.write(
+        `\r\n\x1b[32mConnected to terminal session${sessionId ? ` (${sessionId.slice(0, 8)})` : ""}...\x1b[0m\r\n`,
+      );
       if (sessionId) {
-          term.write('\x1b[90mEnvironment isolated. Type "exit" to close connection.\x1b[0m\r\n');
+        term.write('\x1b[90mEnvironment isolated. Type "exit" to close connection.\x1b[0m\r\n');
       }
     };
 
     ws.onmessage = (event: MessageEvent<unknown>) => {
       // Write data received from server to the terminal
-      if (typeof event.data === 'string') {
+      if (typeof event.data === "string") {
         term.write(event.data);
       }
     };
 
     ws.onerror = () => {
-      term.write('\r\n\x1b[31mConnection error. Please check if the server is running.\x1b[0m\r\n');
+      term.write("\r\n\x1b[31mConnection error. Please check if the server is running.\x1b[0m\r\n");
     };
 
     ws.onclose = () => {
-      term.write('\r\n\x1b[33mConnection closed.\x1b[0m\r\n');
+      term.write("\r\n\x1b[33mConnection closed.\x1b[0m\r\n");
     };
 
     // Forward terminal input to the server
@@ -176,11 +181,51 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
     };
   }, [isContainerReady, sessionId]);
 
+  // Dynamic Theme Update
+  useEffect(() => {
+    if (!terminalRef.current) return;
+
+    const updateTheme = () => {
+      const isDark =
+        theme === "dark" ||
+        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+      const xtermTheme = isDark
+        ? {
+            background: "#09090b", // zinc-950
+            foreground: "#f4f4f5", // zinc-100
+            cursor: "#f4f4f5",
+            selectionBackground: "rgba(255, 255, 255, 0.3)",
+          }
+        : {
+            background: "#ffffff",
+            foreground: "#09090b", // zinc-950
+            cursor: "#09090b",
+            selectionBackground: "rgba(0, 0, 0, 0.1)",
+          };
+
+      if (terminalRef.current) {
+        terminalRef.current.options.theme = xtermTheme;
+      }
+    };
+
+    updateTheme();
+
+    if (theme === "system") {
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const listener = () => updateTheme();
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    }
+
+    return undefined;
+  }, [theme, isContainerReady]);
+
   return (
-    <div 
-      ref={containerRef} 
-      className="h-full w-full bg-zinc-950 overflow-hidden" 
-      style={{ padding: '8px' }}
+    <div
+      ref={containerRef}
+      className="h-full w-full bg-background overflow-hidden terminal-wrapper"
+      style={{ padding: "8px" }}
     />
   );
 }

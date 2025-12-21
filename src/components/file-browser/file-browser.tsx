@@ -30,7 +30,7 @@ export function FileBrowser({ onFileSelect, className }: FileBrowserProps) {
   const reload = () => setRefreshKey((prev) => prev + 1);
 
   return (
-    <div className={`flex flex-col h-full bg-muted/10 border-r border-border ${className}`}>
+    <div className={`flex flex-col h-full bg-background border-r border-border ${className}`}>
       <div className="p-2 border-b border-border flex flex-col gap-2 shrink-0">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -48,7 +48,7 @@ export function FileBrowser({ onFileSelect, className }: FileBrowserProps) {
           {rootPath}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-2">
+      <div className="flex-1 overflow-auto p-2 scrollbar-thin">
         <FileTreeItem
           key={refreshKey} // Force remount on refresh
           path="."

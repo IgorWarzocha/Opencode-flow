@@ -96,7 +96,7 @@ export function SourceControl({ className }: SourceControlProps) {
   const unstagedFiles = status.filter((f) => f.status[1] !== " " || f.status === "??");
 
   return (
-    <div className={`flex flex-col h-full bg-muted/10 border-r border-border ${className || ""}`}>
+    <div className={`flex flex-col h-full bg-background border-r border-border ${className || ""}`}>
       {/* Header */}
       <div className="p-2 border-b border-border flex flex-col gap-2 shrink-0">
         <div className="flex items-center justify-between">
@@ -135,7 +135,7 @@ export function SourceControl({ className }: SourceControlProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-2 flex flex-col gap-4">
+      <div className="flex-1 overflow-auto p-2 flex flex-col gap-4 scrollbar-thin">
         {/* Commit Input */}
         <div className="flex flex-col gap-2">
           <textarea

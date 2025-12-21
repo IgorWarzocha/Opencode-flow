@@ -1,10 +1,14 @@
 import { describe, expect, it, beforeAll } from "bun:test";
-import { createSession, getSession, listSessions, deleteSession } from "./session";
-import { initDB } from "../database/sqlite";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createSession, getSession, listSessions, deleteSession } from "./session.ts";
+import { initDB } from "../database/sqlite.ts";
 
 describe("Session Management", () => {
-  beforeAll(() => {
-    initDB();
+  beforeAll(async () => {
+    // Use a temporary directory for test database
+    const testDir = join(tmpdir(), `opencode-flow-test-${Date.now()}`);
+    await initDB(testDir);
   });
 
   it("should create a session", async () => {

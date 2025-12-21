@@ -4,7 +4,7 @@
  */
 import * as nodePath from "node:path";
 import { existsSync } from "node:fs";
-import { db } from "../database/database.ts";
+import { getDB } from "../database/database.ts";
 import { createWorktree, removeWorktreeAndBranch } from "../git/git.ts";
 
 /** Valid session status values. */
@@ -57,18 +57,18 @@ const parseContext = (raw: string | null): Record<string, unknown> => {
  * Creates a new session with the given name and initial context.
  */
 export const createSession = async (
-  name: string, 
-  context: Record<string, unknown> = {}, 
-  options: { branchName?: string; baseBranch?: string } = {}
+  name: string,
+  context: Record<string, unknown> = {},
+  options: { branchName?: string; baseBranch?: string } = {},
 ): Promise<Session> => {
   const id = crypto.randomUUID();
   let status: SessionStatus = "active";
   const now = new Date().toISOString();
-  
+
   const branchName = options.branchName ?? `session-${id}`;
   // Use absolute path for worktree
   const worktreePath = nodePath.resolve(process.cwd(), ".opencode/worktrees", id);
-  
+
   try {
     await createWorktree(branchName, worktreePath, {
       createBranch: true,
@@ -79,7 +79,7 @@ export const createSession = async (
     status = "failed";
   }
 
-  const query = db.query(`
+  const query = getDB().query(`
     INSERT INTO opencode_sessions (id, name, status, worktree_path, branch_name, context, created_at, updated_at)
     VALUES ($id, $name, $status, $worktreePath, $branchName, $context, $created_at, $updated_at)
     RETURNING *;
@@ -110,7 +110,7 @@ export const createSession = async (
  * Lists all sessions ordered by most recently updated.
  */
 export const listSessions = (): Session[] => {
-  const query = db.query(`
+  const query = getDB().query(`
     SELECT * FROM opencode_sessions
     ORDER BY updated_at DESC;
   `);
@@ -127,7 +127,7 @@ export const listSessions = (): Session[] => {
  * Retrieves a specific session by ID.
  */
 export const getSession = (id: string): Session | null => {
-  const query = db.query(`
+  const query = getDB().query(`
     SELECT * FROM opencode_sessions
     WHERE id = $id;
   `);
@@ -148,7 +148,7 @@ export const getSession = (id: string): Session | null => {
  * Deletes a session by ID.
  */
 export const deleteSession = (id: string): void => {
-  const query = db.query(`
+  const query = getDB().query(`
     DELETE FROM opencode_sessions
     WHERE id = $id;
   `);
@@ -162,10 +162,7 @@ export const deleteSession = (id: string): void => {
  * @param id - Session ID to archive
  * @param status - Final status ("merged" if changes were integrated, "archived" otherwise)
  */
-export const archiveSession = async (
-  id: string, 
-  status: "merged" | "archived"
-): Promise<void> => {
+export const archiveSession = async (id: string, status: "merged" | "archived"): Promise<void> => {
   const session = getSession(id);
   if (!session) {
     throw new Error(`Session ${id} not found`);
@@ -179,20 +176,20 @@ export const archiveSession = async (
   if (session.worktree_path && session.branch_name) {
     const worktreeExists = existsSync(session.worktree_path);
     if (worktreeExists) {
-        try {
+      try {
         await removeWorktreeAndBranch(session.worktree_path, session.branch_name);
-        } catch (e) {
+      } catch (e) {
         console.error(`Failed to cleanup git resources for session ${id}:`, e);
         // Continue to archive DB record anyway
-        }
+      }
     }
   }
 
-  const query = db.query(`
+  const query = getDB().query(`
     UPDATE opencode_sessions 
     SET status = $status, worktree_path = NULL, branch_name = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE id = $id
   `);
-  
+
   query.run({ $id: id, $status: status });
 };
