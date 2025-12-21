@@ -17,6 +17,8 @@ export type AssistantMessage = {
   createdAt: number;
   completedAt: number | null;
   parts: AssistantPart[];
+  agent?: string;
+  model?: { providerID: string; modelID: string };
 };
 
 export type AssistantSession = {
@@ -39,6 +41,10 @@ export type EventMessageUpdated = {
       role: string;
       sessionID: string;
       time: { created: number; completed?: number };
+      agent?: string;
+      model?: { providerID: string; modelID: string };
+      providerID?: string;
+      modelID?: string;
       [key: string]: unknown;
     };
   };

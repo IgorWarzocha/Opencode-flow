@@ -2,8 +2,8 @@
  * OpenCode Serve Client manages a shared local opencode serve process.
  * It provides a directory-scoped SDK client for the running server.
  */
-// @ts-ignore sdk is provided via package.json at runtime
-import { createOpencodeClient } from "@opencode-ai/sdk";
+// sdk is provided via package.json at runtime
+import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import type { Subprocess } from "bun";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -60,7 +60,7 @@ export const ensureServeBaseUrl = async (): Promise<string | null> => {
   return serveBaseUrl;
 };
 
-export const getServeClient = async (directory: string) => {
+export const getServeClient = async () => {
   const baseUrl = await ensureServeBaseUrl();
   if (!baseUrl) {
     return { client: null, error: "OpenCode serve failed to start." };
@@ -69,7 +69,6 @@ export const getServeClient = async (directory: string) => {
   return {
     client: createOpencodeClient({
       baseUrl,
-      directory,
       responseStyle: "fields",
       throwOnError: false,
     }),

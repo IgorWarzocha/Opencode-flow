@@ -11,8 +11,7 @@ type AgentView = {
 };
 
 export const getAgentView = (part: Part): AgentView | null => {
-  if (part.type !== "agent") return null;
-
-  const name = typeof part.name === "string" ? part.name : "agent";
-  return { label: "agent", content: name };
+  // Agent info is now handled in the message header, not as a part block.
+  // Returning null here prevents it from being rendered twice.
+  return null;
 };

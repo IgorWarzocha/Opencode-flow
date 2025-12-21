@@ -79,10 +79,6 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
     [sessions, activeSessionId],
   );
 
-  const currentAgentLabel = selectedAgent
-    ? agents.find((a) => a.id === selectedAgent)?.label
-    : "Auto";
-
   // Effects to load data on open
   useEffect(() => {
     if (!isOpen) return;
@@ -142,7 +138,12 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
         />
       )}
 
-      <PanelChat messages={messages} isLoading={isLoadingMessages} error={sessionError} />
+      <PanelChat
+        messages={messages}
+        isLoading={isLoadingMessages}
+        error={sessionError}
+        agents={agents}
+      />
 
       <PanelInput
         onSendMessage={(text) => {
@@ -159,8 +160,14 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
         }}
         isSending={isSending}
         disabled={!activeSessionId}
-        agentLabel={currentAgentLabel ?? "Auto"}
-        modelLabel={selectedModelId || "Default Model"}
+        agents={agents}
+        providers={providers}
+        selectedAgent={selectedAgent}
+        selectedProviderId={selectedProviderId}
+        selectedModelId={selectedModelId}
+        onAgentChange={setSelectedAgent}
+        onProviderChange={setSelectedProviderId}
+        onModelChange={setSelectedModelId}
       />
     </div>
   );

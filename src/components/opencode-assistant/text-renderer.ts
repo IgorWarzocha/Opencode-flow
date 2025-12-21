@@ -12,9 +12,12 @@ type TextView = {
 
 export const getTextView = (part: Part): TextView | null => {
   if (part.type !== "text") return null;
+
+  const label = "text";
+
   if (typeof part.text === "string") {
-    return { label: "text", content: part.text };
+    return { label, content: part.text };
   }
 
-  return { label: "text", content: JSON.stringify(part, null, 2) };
+  return { label, content: JSON.stringify(part, null, 2) };
 };

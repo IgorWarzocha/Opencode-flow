@@ -1,14 +1,15 @@
 /**
  * Chat area rendering messages.
  */
-import { Send } from "lucide-react";
+import { Send, Bot } from "lucide-react";
 import { PartRenderer } from "./part-renderer";
-import type { AssistantMessage } from "./types";
+import type { AssistantMessage, AgentOption } from "./types";
 
 interface PanelChatProps {
   messages: AssistantMessage[];
   isLoading: boolean;
   error: string | null;
+  agents?: AgentOption[];
 }
 
 const formatTime = (value: number) => {
@@ -16,9 +17,20 @@ const formatTime = (value: number) => {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-export function PanelChat({ messages, isLoading, error }: PanelChatProps) {
+const getAgentLabel = (id: string, agents?: AgentOption[]) => {
+  const agent = agents?.find((a) => a.id === id);
+  let label = agent?.label ?? id;
+  // Clean up noisy suffixes that might be present in the registry labels
+  return label
+    .replace(/\s*\(primary\)/i, "")
+    .replace(/\s*\(subagent\)/i, "")
+    .replace(/\s*\(model\)/i, "")
+    .trim();
+};
+
+export function PanelChat({ messages, isLoading, error, agents }: PanelChatProps) {
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+    <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin">
       {isLoading && (
         <div className="flex justify-center p-4">
           <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
@@ -37,6 +49,21 @@ export function PanelChat({ messages, isLoading, error }: PanelChatProps) {
           key={message.id}
           className={`flex flex-col gap-1 ${message.role === "user" ? "items-end" : "items-start"}`}
         >
+          {message.role === "assistant" && (
+            <div className="flex items-center gap-2 px-1 text-xs mb-1">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Bot className="w-3.5 h-3.5" />
+                <span className="font-medium">
+                  {message.agent ? getAgentLabel(message.agent, agents) : "Assistant"}
+                </span>
+              </div>
+              {message.model && (
+                <div className="flex items-center px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-mono text-muted-foreground/80 border border-border/40">
+                  {message.model.modelID}
+                </div>
+              )}
+            </div>
+          )}
           <div
             className={`px-4 py-3 rounded-2xl max-w-[90%] text-sm ${
               message.role === "user"
@@ -48,7 +75,7 @@ export function PanelChat({ messages, isLoading, error }: PanelChatProps) {
             {message.parts.length > 0 && (
               <div className="space-y-2">
                 {message.parts.map((part) => (
-                  <PartRenderer key={part.id} part={part} />
+                  <PartRenderer key={part.id} part={part} message={message} />
                 ))}
               </div>
             )}

@@ -30,7 +30,7 @@ Session synchronization:
 OpenCode serve client:
 
 - `ensureServeBaseUrl()` - Ensures a local `opencode serve` instance is running
-- `getServeClient(directory)` - Returns a directory-scoped SDK client for the running server
+- `getServeClient()` - Returns an SDK client for the running server
 
 ## Usage
 
