@@ -3,7 +3,7 @@ import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "reac
 import { GraphCanvas } from "./components/canvas/canvas";
 import { CodeEditor } from "./components/editor/editor";
 import { DiffViewer } from "./components/editor/DiffViewer";
-import { Terminal } from "./components/terminal/terminal";
+import { TerminalSidebar } from "./components/terminal/terminal";
 import { SessionSidebar } from "./components/session/session";
 import { FileBrowser } from "./components/file-browser/file-browser";
 import { SourceControl } from "./components/git/git";
@@ -51,7 +51,7 @@ const viewModeButtonClass = (isActive: boolean) =>
       : "text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
-type SidebarView = "files" | "git" | "sessions" | "docs";
+type SidebarView = "files" | "git" | "sessions" | "docs" | "terminal";
 type CenterMode = "graph" | "editor" | "split";
 
 export function App() {
@@ -63,7 +63,6 @@ export function App() {
   const [centerMode, setCenterMode] = useState<CenterMode>("split");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
 
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
@@ -171,9 +170,9 @@ export function App() {
 
             <div className="mt-auto flex flex-col items-center gap-2">
               <button
-                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
-                className={sidebarTabClass(isTerminalOpen)}
-                title="Toggle Terminal"
+                onClick={() => toggleSidebar("terminal")}
+                className={sidebarTabClass(sidebarView === "terminal" && isSidebarOpen)}
+                title="Terminal"
               >
                 <TerminalIcon className="w-5 h-5" />
               </button>
@@ -216,6 +215,9 @@ export function App() {
                         className="border-none w-full h-full"
                       />
                     )}
+                    {sidebarView === "terminal" && (
+                      <TerminalSidebar className="border-none w-full h-full" />
+                    )}
                   </div>
                 </Panel>
                 <PanelResizeHandle className="w-1 bg-border/50 hover:bg-primary transition-colors focus:outline-none" />
@@ -232,7 +234,7 @@ export function App() {
               <PanelGroup orientation="vertical" className="h-full w-full">
                 {/* Editor/Graph Area */}
                 <Panel
-                  defaultSize={isTerminalOpen ? 75 : 100}
+                  defaultSize={100}
                   minSize={20}
                   id="editor-graph-panel"
                   className="flex flex-col h-full overflow-hidden"
@@ -300,24 +302,6 @@ export function App() {
                     </div>
                   </div>
                 </Panel>
-
-                {/* Terminal Panel */}
-                {isTerminalOpen && (
-                  <>
-                    <PanelResizeHandle className="h-1 bg-border/50 hover:bg-primary transition-colors focus:outline-none" />
-                    <Panel
-                      defaultSize={25}
-                      collapsible
-                      minSize={10}
-                      id="terminal-panel"
-                      className="flex flex-col h-full overflow-hidden"
-                    >
-                      <div className="h-full w-full overflow-hidden bg-background">
-                        <Terminal sessionId={activeSessionId} />
-                      </div>
-                    </Panel>
-                  </>
-                )}
               </PanelGroup>
             </Panel>
 

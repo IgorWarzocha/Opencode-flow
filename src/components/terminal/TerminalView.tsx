@@ -6,9 +6,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Terminal as XTerm } from "xterm";
-import { FitAddon } from "xterm-addon-fit";
-import "xterm/css/xterm.css";
+import { Terminal as XTerm } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 import { useTheme } from "../theme/theme-provider";
 
 /**
@@ -31,13 +31,29 @@ function safeFit(term: XTerm, fitAddon: FitAddon): boolean {
   }
 }
 
-export function Terminal({ sessionId }: { sessionId?: string | null }) {
+export function Terminal({
+  sessionId,
+  onFirstLine,
+}: {
+  sessionId?: string | null;
+  onFirstLine?: (line: string) => void;
+}) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const textDecoderRef = useRef<TextDecoder | null>(null);
+  const onFirstLineRef = useRef<typeof onFirstLine>(onFirstLine);
   const isInitializedRef = useRef(false);
+
+  // Buffer for capturing the first command
+  const lineBufferRef = useRef("");
+  const hasCapturedFirstLineRef = useRef(false);
+
+  useEffect(() => {
+    onFirstLineRef.current = onFirstLine;
+  }, [onFirstLine]);
 
   // State to trigger re-render when container becomes visible
   const [isContainerReady, setIsContainerReady] = useState(false);
@@ -99,6 +115,9 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
     term.open(container);
     terminalRef.current = term;
 
+    // focus the terminal to allow typing immediately
+    term.focus();
+
     // Wait for terminal renderer to be fully ready before fitting
     // Poll until the internal dimensions are available
     let fitAttempts = 0;
@@ -133,11 +152,29 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
       }
     };
 
-    ws.onmessage = (event: MessageEvent<unknown>) => {
-      // Write data received from server to the terminal
-      if (typeof event.data === "string") {
-        term.write(event.data);
+    const handleMessage = async (data: unknown) => {
+      if (typeof data === "string") {
+        term.write(data);
+        return;
       }
+
+      if (data instanceof ArrayBuffer) {
+        const decoder = textDecoderRef.current ?? new TextDecoder();
+        textDecoderRef.current = decoder;
+        term.write(decoder.decode(data));
+        return;
+      }
+
+      if (data instanceof Blob) {
+        const buffer = await data.arrayBuffer();
+        const decoder = textDecoderRef.current ?? new TextDecoder();
+        textDecoderRef.current = decoder;
+        term.write(decoder.decode(buffer));
+      }
+    };
+
+    ws.onmessage = (event: MessageEvent<unknown>) => {
+      void handleMessage(event.data);
     };
 
     ws.onerror = () => {
@@ -150,8 +187,27 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
 
     // Forward terminal input to the server
     const dataDisposable = term.onData((data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data);
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      ws.send(data);
+
+      // Capture first line for the title
+      const firstLineHandler = onFirstLineRef.current;
+      if (firstLineHandler && !hasCapturedFirstLineRef.current) {
+        if (data === "\r") {
+          // Enter key pressed
+          if (lineBufferRef.current.trim()) {
+            firstLineHandler(lineBufferRef.current.trim());
+            hasCapturedFirstLineRef.current = true;
+          }
+        } else if (data === "\u007F") {
+          // Backspace
+          lineBufferRef.current = lineBufferRef.current.slice(0, -1);
+        } else if (data >= " " && data <= "~") {
+          // Printable characters
+          lineBufferRef.current += data;
+        }
       }
     });
 
@@ -162,6 +218,7 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
       resizeTimer = setTimeout(() => {
         if (terminalRef.current && fitAddonRef.current) {
           safeFit(terminalRef.current, fitAddonRef.current);
+          terminalRef.current.focus(); // Re-focus after resize/fit
         }
       }, 100);
     });
@@ -178,6 +235,8 @@ export function Terminal({ sessionId }: { sessionId?: string | null }) {
       terminalRef.current = null;
       fitAddonRef.current = null;
       isInitializedRef.current = false;
+      hasCapturedFirstLineRef.current = false;
+      lineBufferRef.current = "";
     };
   }, [isContainerReady, sessionId]);
 

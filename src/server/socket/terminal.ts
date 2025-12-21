@@ -4,74 +4,67 @@
  */
 import type { ServerWebSocket } from "bun";
 import { getWorkspaceRoot } from "../workspace";
-import { spawnAgentProcess, type AgentProcess } from "../agent/spawner";
+import type { Subprocess } from "bun";
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 /**
  * Data attached to each WebSocket connection.
  */
 export interface WebSocketData {
-  proc?: AgentProcess | undefined;
+  proc?: Subprocess | undefined;
   sessionId?: string | undefined;
-  worktreePath?: string | undefined;
-}
-
-async function pipeStreamToSocket(
-  stream: ReadableStream<Uint8Array>,
-  socket: ServerWebSocket<WebSocketData>,
-): Promise<void> {
-  const reader = stream.getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      socket.send(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 export const terminalSocket = {
   open(ws: ServerWebSocket<WebSocketData>) {
-    const { sessionId, worktreePath } = ws.data;
+    try {
+      // Use Bun's native PTY support (v1.3.5+)
+      // We cast options to any because types might be outdated in the project
+      const proc = Bun.spawn(["bash"], {
+        cwd: getWorkspaceRoot(),
+        env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
+        terminal: {
+          cols: 80,
+          rows: 24,
+          data(_terminal: unknown, data: Uint8Array) {
+            ws.send(textDecoder.decode(data));
+          },
+        },
+      } as any);
 
-    // Use spawnAgentProcess for session-bound terminals, fallback to plain bash
-    const proc =
-      sessionId && worktreePath
-        ? spawnAgentProcess(worktreePath, sessionId)
-        : Bun.spawn(["bash"], {
-            stdin: "pipe",
-            stdout: "pipe",
-            stderr: "pipe",
-            cwd: getWorkspaceRoot(),
-            env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
-          });
+      ws.data.proc = proc;
 
-    ws.data.proc = proc;
-
-    // Fire-and-forget stream piping with proper error handling
-    if (proc.stdout) {
-      void pipeStreamToSocket(proc.stdout, ws).catch(() => {
-        /* stream closed, ignore */
-      });
-    }
-    if (proc.stderr) {
-      void pipeStreamToSocket(proc.stderr, ws).catch(() => {
-        /* stream closed, ignore */
-      });
+      if (!(proc as { terminal?: unknown }).terminal) {
+        ws.send(
+          "\r\n\x1b[33mWarning: Server does not support PTY (Bun < v1.3.5?). Input disabled.\x1b[0m\r\n",
+        );
+      }
+    } catch (e) {
+      ws.send(`\r\n\x1b[31mError spawning terminal: ${e}\x1b[0m\r\n`);
     }
   },
   message(ws: ServerWebSocket<WebSocketData>, message: string | Uint8Array) {
-    const proc = ws.data.proc;
-    if (proc?.stdin) {
-      proc.stdin.write(message);
-      void proc.stdin.flush();
+    const proc = ws.data.proc as { terminal?: { write: (data: Uint8Array) => void } } | undefined;
+    if (!proc?.terminal) {
+      return;
     }
+
+    const payload = typeof message === "string" ? textEncoder.encode(message) : message;
+    proc.terminal.write(payload);
   },
   close(ws: ServerWebSocket<WebSocketData>) {
-    const proc = ws.data.proc;
+    const proc = ws.data.proc as any;
     if (proc) {
       proc.kill();
+      if (proc.terminal) {
+        try {
+          proc.terminal.close();
+        } catch {
+          // Ignore close errors
+        }
+      }
     }
   },
 };

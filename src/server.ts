@@ -6,7 +6,6 @@ import { serve } from "bun";
 import { cwd } from "node:process";
 import { initDB } from "./server/database/database.ts";
 import index from "./index.html";
-import { getSession } from "./server/session/session.ts";
 
 // Route modules
 import { systemRoutes } from "./server/routes/system.ts";
@@ -41,16 +40,7 @@ const server = serve<WebSocketData>({
       const url = new URL(req.url);
       const sessionId = url.searchParams.get("sessionId");
 
-      let worktreePath: string | undefined;
-
-      if (sessionId) {
-        const session = getSession(sessionId);
-        if (session?.worktree_path) {
-          worktreePath = session.worktree_path;
-        }
-      }
-
-      if (server.upgrade(req, { data: { sessionId: sessionId ?? undefined, worktreePath } })) {
+      if (server.upgrade(req, { data: { sessionId: sessionId ?? undefined } })) {
         return undefined;
       }
       return new Response("WebSocket upgrade failed", { status: 500 });

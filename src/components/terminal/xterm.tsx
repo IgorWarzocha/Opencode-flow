@@ -2,7 +2,7 @@
  * XTerm Component - Real-time agent console
  * Provides a terminal interface for monitoring agent execution and process output.
  */
-import "xterm/css/xterm.css";
+import "@xterm/xterm/css/xterm.css";
 
 export const AgentTerminal = () => {
   // TODO: Implement xterm.js initialization with WebSockets
