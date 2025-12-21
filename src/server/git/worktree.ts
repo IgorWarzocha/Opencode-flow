@@ -3,6 +3,8 @@
  * Manages the creation and lifecycle of git worktrees for agent execution.
  */
 
+import { getWorkspaceRoot } from "../workspace.ts";
+
 export interface Worktree {
   path: string;
   head: string;
@@ -14,6 +16,7 @@ export const listWorktrees = async (): Promise<Worktree[]> => {
   const proc = Bun.spawn(["git", "worktree", "list", "--porcelain"], {
     stdout: "pipe",
     stderr: "pipe",
+    cwd: getWorkspaceRoot(),
   });
 
   const output = await new Response(proc.stdout).text();
@@ -51,7 +54,7 @@ export const listWorktrees = async (): Promise<Worktree[]> => {
 export const createWorktree = async (
   branch: string,
   path: string,
-  options: { createBranch?: boolean; baseBranch?: string } = {}
+  options: { createBranch?: boolean; baseBranch?: string } = {},
 ) => {
   const args = ["git", "worktree", "add"];
 
@@ -67,12 +70,15 @@ export const createWorktree = async (
   const proc = Bun.spawn(args, {
     stdout: "pipe",
     stderr: "pipe",
+    cwd: getWorkspaceRoot(),
   });
 
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
     const error = await new Response(proc.stderr).text();
-    throw new Error(`Failed to create worktree at '${path}' for branch '${branch}': ${error.trim()}`);
+    throw new Error(
+      `Failed to create worktree at '${path}' for branch '${branch}': ${error.trim()}`,
+    );
   }
 };
 
@@ -80,6 +86,7 @@ export const removeWorktree = async (path: string) => {
   const proc = Bun.spawn(["git", "worktree", "remove", path], {
     stdout: "pipe",
     stderr: "pipe",
+    cwd: getWorkspaceRoot(),
   });
 
   const exitCode = await proc.exited;
