@@ -1,44 +1,61 @@
-/**
- * OpenCodeAssistantPanel renders a live session timeline and prompt composer.
- * It talks to the backend assistant endpoints that proxy opencode serve.
- */
-"use client";
-
 import { useEffect, useState, useMemo } from "react";
-
-import { useAssistantData } from "./use-assistant-data";
-import { useAssistantSession } from "./use-assistant-session";
 
 import { PanelHeader } from "./panel-header";
 import { PanelSettings } from "./panel-settings";
 import { PanelHistory } from "./panel-history";
-import { PanelChat } from "./panel-chat";
-import { PanelInput } from "./panel-input";
+import { SessionView } from "./session-view";
+import { useNewSessionDialog } from "./use-new-session-dialog";
+import type { AssistantSession, AgentOption } from "./types";
+import type { ProviderOption } from "./model-data";
 
 interface OpenCodeAssistantPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  // Controlled State
+  sessions: AssistantSession[];
+  agents: AgentOption[];
+  providers: ProviderOption[];
+  modelDefaults: Record<string, string>;
+  isLoadingSessions: boolean;
+  activeSessionId: string | null;
+  openSessionIds: string[];
+
+  onSessionSelect: (id: string) => void;
+  onSessionClose: (id: string) => void;
+  onSessionCreate: (title: string, baseBranch?: string) => void;
+
+  // Selection Props
+  defaultAgentId: string | null;
+  defaultProviderId: string | null;
+  defaultModelId: string | null;
 }
 
-export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPanelProps) {
-  // Data Hooks
+export function OpenCodeAssistantPanel({
+  isOpen,
+  onClose,
+  sessions,
+  agents,
+  providers,
+  modelDefaults,
+  isLoadingSessions,
+  activeSessionId,
+  openSessionIds,
+  onSessionSelect,
+  onSessionCreate,
+  defaultAgentId,
+  defaultProviderId,
+  defaultModelId,
+}: OpenCodeAssistantPanelProps) {
   const {
-    sessions,
-    agents,
-    providers,
-    modelDefaults,
-    isLoadingSessions,
-    defaultAgentId,
-    defaultProviderId,
-    defaultModelId,
-    loadAgents,
-    loadModels,
-    loadSessions,
-    createSession,
-  } = useAssistantData();
+    isOpen: isNewSessionOpen,
+    openDialog: openNewSessionDialog,
+    closeDialog: closeNewSessionDialog,
+    handleCreate: handleCreateSession,
+    NewSessionDialogComponent,
+  } = useNewSessionDialog(async (title, baseBranch) => {
+    onSessionCreate(title, baseBranch);
+  });
 
-  // Local Selection State
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -53,22 +70,6 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
     if (defaultModelId && !selectedModelId) setSelectedModelId(defaultModelId);
   }, [defaultProviderId, defaultModelId, selectedProviderId, selectedModelId]);
 
-  // Set initial active session
-  useEffect(() => {
-    if (sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0]?.id ?? null);
-    }
-  }, [sessions, activeSessionId]);
-
-  // Session Logic (SSE + Messages)
-  const {
-    messages,
-    isLoadingMessages,
-    isSending,
-    error: sessionError,
-    sendMessage,
-  } = useAssistantSession(activeSessionId);
-
   // UI Toggles
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -79,18 +80,10 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
     [sessions, activeSessionId],
   );
 
-  // Effects to load data on open
-  useEffect(() => {
-    if (!isOpen) return;
-    void loadSessions();
-    void loadAgents();
-    void loadModels();
-  }, [isOpen, loadSessions, loadAgents, loadModels]);
-
   if (!isOpen) return null;
 
   return (
-    <div className="h-full w-full flex flex-col bg-background">
+    <div className="h-full w-full flex flex-col bg-background overflow-hidden">
       <PanelHeader
         activeSession={activeSession}
         showHistory={showHistory}
@@ -103,7 +96,14 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
           setShowSettings(!showSettings);
           setShowHistory(false);
         }}
+        onNewSession={openNewSessionDialog}
         onClose={onClose}
+      />
+
+      <NewSessionDialogComponent
+        isOpen={isNewSessionOpen}
+        onClose={closeNewSessionDialog}
+        onCreate={handleCreateSession}
       />
 
       {showSettings && (
@@ -125,50 +125,46 @@ export function OpenCodeAssistantPanel({ isOpen, onClose }: OpenCodeAssistantPan
           sessions={sessions}
           activeSessionId={activeSessionId}
           isLoading={isLoadingSessions}
-          onCreateSession={(title) => {
-            void createSession(title).then((session) => {
-              setActiveSessionId(session.id);
-              setShowHistory(false);
-            });
-          }}
           onSelectSession={(id) => {
-            setActiveSessionId(id);
+            onSessionSelect(id);
             setShowHistory(false);
           }}
         />
       )}
 
-      <PanelChat
-        messages={messages}
-        isLoading={isLoadingMessages}
-        error={sessionError}
-        agents={agents}
-      />
+      {/* Content Area - Render all open sessions (hidden if inactive) */}
+      <div className="flex-1 overflow-hidden relative">
+        {openSessionIds.length === 0 && !showHistory && !showSettings && (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm">
+            <p>No open sessions.</p>
+            <button
+              onClick={() => setShowHistory(true)}
+              className="text-primary hover:underline mt-2"
+            >
+              Open from History
+            </button>
+            <button onClick={openNewSessionDialog} className="text-primary hover:underline mt-2">
+              Start New Chat
+            </button>
+          </div>
+        )}
 
-      <PanelInput
-        onSendMessage={(text) => {
-          const model =
-            selectedProviderId && selectedModelId
-              ? { providerID: selectedProviderId, modelID: selectedModelId }
-              : undefined;
-
-          const options: { agent?: string; model?: { providerID: string; modelID: string } } = {};
-          if (selectedAgent) options.agent = selectedAgent;
-          if (model) options.model = model;
-
-          void sendMessage(text, options);
-        }}
-        isSending={isSending}
-        disabled={!activeSessionId}
-        agents={agents}
-        providers={providers}
-        selectedAgent={selectedAgent}
-        selectedProviderId={selectedProviderId}
-        selectedModelId={selectedModelId}
-        onAgentChange={setSelectedAgent}
-        onProviderChange={setSelectedProviderId}
-        onModelChange={setSelectedModelId}
-      />
+        {openSessionIds.map((sessionId) => (
+          <SessionView
+            key={sessionId}
+            sessionId={sessionId}
+            isActive={sessionId === activeSessionId}
+            agents={agents}
+            providers={providers}
+            selectedAgent={selectedAgent}
+            selectedProviderId={selectedProviderId}
+            selectedModelId={selectedModelId}
+            onAgentChange={setSelectedAgent}
+            onProviderChange={setSelectedProviderId}
+            onModelChange={setSelectedModelId}
+          />
+        ))}
+      </div>
     </div>
   );
 }

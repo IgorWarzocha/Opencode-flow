@@ -59,15 +59,18 @@ const parseContext = (raw: string | null): Record<string, unknown> => {
 export const createSession = async (
   name: string,
   context: Record<string, unknown> = {},
-  options: { branchName?: string; baseBranch?: string } = {},
+  options: { branchName?: string; baseBranch?: string; id?: string } = {},
 ): Promise<Session> => {
-  const id = crypto.randomUUID();
+  const id = options.id ?? crypto.randomUUID();
   let status: SessionStatus = "active";
   const now = new Date().toISOString();
 
   const branchName = options.branchName ?? `session-${id}`;
   // Use absolute path for worktree
-  const worktreePath = nodePath.resolve(process.cwd(), ".opencode/worktrees", id);
+  const worktreePath = nodePath.resolve(process.cwd(), ".opencode-flow/worktrees", id);
+  // Ensure parent directory exists
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(nodePath.dirname(worktreePath), { recursive: true });
 
   try {
     await createWorktree(branchName, worktreePath, {

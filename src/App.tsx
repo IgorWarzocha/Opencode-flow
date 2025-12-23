@@ -20,11 +20,17 @@ import {
   LayoutTemplate,
   FileCode,
   Columns,
+  Plus,
+  X,
 } from "lucide-react";
 import "./index.css";
 import { ThemeProvider } from "./components/theme/theme-provider";
 import { ThemeToggle } from "./components/theme/theme-toggle";
-import { OpenCodeAssistantPanel } from "./components/opencode-assistant/opencode-assistant";
+import {
+  OpenCodeAssistantPanel,
+  useAssistantData,
+} from "./components/opencode-assistant/opencode-assistant";
+import { useNewSessionDialog } from "./components/opencode-assistant/use-new-session-dialog";
 import { cn } from "./lib/utils";
 
 const headerButtonClass = (isActive: boolean) =>
@@ -40,6 +46,14 @@ const sidebarTabClass = (isActive: boolean) =>
     "p-2 rounded-md transition-colors flex justify-center",
     isActive
       ? "text-primary bg-accent/50 shadow-sm"
+      : "text-muted-foreground hover:text-foreground hover:bg-accent",
+  );
+
+const sessionButtonClass = (isActive: boolean) =>
+  cn(
+    "group relative p-2 rounded-md transition-colors flex justify-center w-8 h-8",
+    isActive
+      ? "bg-primary/20 text-primary shadow-sm"
       : "text-muted-foreground hover:text-foreground hover:bg-accent",
   );
 
@@ -67,7 +81,83 @@ export function App() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
+
+  // --- Assistant State Hoisted ---
+  const {
+    sessions,
+    agents,
+    providers,
+    modelDefaults,
+    isLoadingSessions,
+    defaultAgentId,
+    defaultProviderId,
+    defaultModelId,
+    loadAgents,
+    loadModels,
+    loadSessions,
+    createSession,
+  } = useAssistantData();
+
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [openSessionIds, setOpenSessionIds] = useState<string[]>([]);
+
+  const {
+    isOpen: isNewSessionOpen,
+    openDialog: openNewSessionDialog,
+    closeDialog: closeNewSessionDialog,
+    handleCreate: handleCreateNewSession,
+    NewSessionDialogComponent,
+  } = useNewSessionDialog(async (title, baseBranch) => {
+    await handleCreateSession(title, baseBranch);
+  });
+
+  // Load data on mount
+  useEffect(() => {
+    void loadSessions();
+    void loadAgents();
+    void loadModels();
+  }, [loadSessions, loadAgents, loadModels]);
+
+  // Set initial active session
+  useEffect(() => {
+    if (sessions.length > 0 && openSessionIds.length === 0 && !activeSessionId) {
+      // Only default if we have nothing open
+      const first = sessions[0];
+      if (first) {
+        setOpenSessionIds([first.id]);
+        setActiveSessionId(first.id);
+      }
+    }
+  }, [sessions]);
+
+  const handleOpenSession = (id: string) => {
+    if (!openSessionIds.includes(id)) {
+      setOpenSessionIds((prev) => [...prev, id]);
+    }
+    setActiveSessionId(id);
+    setIsRightPanelOpen(true);
+  };
+
+  const handleCloseSession = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const newOpenIds = openSessionIds.filter((sid) => sid !== id);
+    setOpenSessionIds(newOpenIds);
+
+    if (activeSessionId === id) {
+      setActiveSessionId(
+        newOpenIds.length > 0 ? (newOpenIds[newOpenIds.length - 1] ?? null) : null,
+      );
+    }
+  };
+
+  const handleCreateSession = async (title: string, baseBranch?: string) => {
+    try {
+      const session = await createSession(title, baseBranch);
+      handleOpenSession(session.id);
+    } catch {
+      // error handled in hook
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -205,7 +295,7 @@ export function App() {
                     {sidebarView === "sessions" && (
                       <SessionSidebar
                         activeSessionId={activeSessionId}
-                        onSelectSession={setActiveSessionId}
+                        onSelectSession={(id: string | null) => setActiveSessionId(id)}
                         className="border-none w-full h-full"
                       />
                     )}
@@ -319,25 +409,83 @@ export function App() {
                   <OpenCodeAssistantPanel
                     isOpen={isRightPanelOpen}
                     onClose={() => setIsRightPanelOpen(false)}
+                    sessions={sessions}
+                    agents={agents}
+                    providers={providers}
+                    modelDefaults={modelDefaults}
+                    isLoadingSessions={isLoadingSessions}
+                    activeSessionId={activeSessionId}
+                    openSessionIds={openSessionIds}
+                    onSessionSelect={handleOpenSession}
+                    onSessionClose={handleCloseSession}
+                    onSessionCreate={handleCreateSession}
+                    defaultAgentId={defaultAgentId}
+                    defaultProviderId={defaultProviderId}
+                    defaultModelId={defaultModelId}
                   />
                 </Panel>
               </>
             )}
           </PanelGroup>
 
-          {/* Right Strip */}
+          {/* Right Strip - Session Switcher */}
           <div className="w-12 flex flex-col items-center py-2 border-l border-border bg-muted/10 gap-2 shrink-0 z-10">
             <button
               onClick={() => setIsRightPanelOpen((prev) => !prev)}
               className={sidebarTabClass(isRightPanelOpen)}
-              title="OpenCode Assistant"
+              title="Toggle Assistant"
             >
               <Bot className="w-5 h-5" />
             </button>
+
+            <div className="w-8 h-[1px] bg-border my-1" />
+
+            {/* Open Sessions List */}
+            <div className="flex flex-col gap-2 items-center w-full overflow-y-auto no-scrollbar pb-2">
+              {openSessionIds.map((id) => {
+                const session = sessions.find((s) => s.id === id);
+                const title = session?.title || "Untitled";
+                const initial = title.slice(0, 1).toUpperCase();
+                const isActive = activeSessionId === id && isRightPanelOpen;
+
+                return (
+                  <div key={id} className="relative group">
+                    <button
+                      onClick={() => handleOpenSession(id)}
+                      className={sessionButtonClass(isActive)}
+                      title={title}
+                    >
+                      <span className="text-xs font-bold">{initial || "?"}</span>
+                    </button>
+                    {/* Close Button on Hover */}
+                    <button
+                      onClick={(e) => handleCloseSession(id, e)}
+                      className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-0.5 w-3 h-3 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                      title="Close"
+                    >
+                      <X className="w-2 h-2" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              <button
+                onClick={openNewSessionDialog}
+                className="mt-1 p-2 rounded-md hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                title="New Chat"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Modals */}
+        <NewSessionDialogComponent
+          isOpen={isNewSessionOpen}
+          onClose={closeNewSessionDialog}
+          onCreate={handleCreateNewSession}
+        />
         {isReviewOpen && activeSessionId && (
           <DiffViewer sessionId={activeSessionId} onClose={() => setIsReviewOpen(false)} />
         )}

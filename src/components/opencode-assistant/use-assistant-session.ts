@@ -8,6 +8,7 @@ import type {
   EventMessageUpdated,
   EventMessagePartUpdated,
 } from "./types";
+import { assistantEventManager } from "./event-manager";
 
 export function useAssistantSession(activeSessionId: string | null) {
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
@@ -50,10 +51,8 @@ export function useAssistantSession(activeSessionId: string | null) {
     };
   }, [activeSessionId]);
 
-  // SSE Event Listener
+  // SSE Event Listener via Manager
   useEffect(() => {
-    const es = new EventSource("/api/opencode/assistant/events");
-
     const handleMessageUpdated = (data: EventMessageUpdated) => {
       const info = data.properties.info;
       if (info.sessionID !== activeSessionIdRef.current) return;
@@ -189,27 +188,15 @@ export function useAssistantSession(activeSessionId: string | null) {
       });
     };
 
-    const handleEvent = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data) as { type: string };
-        switch (data.type) {
-          case "message.updated":
-            handleMessageUpdated(data as unknown as EventMessageUpdated);
-            break;
-          case "message.part.updated":
-            handleMessagePartUpdated(data as unknown as EventMessagePartUpdated);
-            break;
-        }
-      } catch {
-        /* ignore */
+    const handleEvent = (data: EventMessageUpdated | EventMessagePartUpdated) => {
+      if (data.type === "message.updated") {
+        handleMessageUpdated(data);
+      } else if (data.type === "message.part.updated") {
+        handleMessagePartUpdated(data);
       }
     };
 
-    es.addEventListener("message", handleEvent);
-
-    return () => {
-      es.close();
-    };
+    return assistantEventManager.subscribe(handleEvent);
   }, []);
 
   const sendMessage = useCallback(

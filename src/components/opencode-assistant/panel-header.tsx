@@ -1,7 +1,7 @@
 /**
  * Header component for the OpenCode Assistant Panel.
  */
-import { History, Settings } from "lucide-react";
+import { History, Settings, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AssistantSession } from "./types";
 
@@ -11,6 +11,7 @@ interface PanelHeaderProps {
   showSettings: boolean;
   onToggleHistory: () => void;
   onToggleSettings: () => void;
+  onNewSession: () => void;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export function PanelHeader({
   showSettings,
   onToggleHistory,
   onToggleSettings,
+  onNewSession,
   onClose,
 }: PanelHeaderProps) {
   return (
@@ -36,6 +38,15 @@ export function PanelHeader({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onNewSession}
+          title="New Session"
+          className="h-7 w-7"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
         <Button
           variant={showHistory ? "secondary" : "ghost"}
           size="icon-sm"

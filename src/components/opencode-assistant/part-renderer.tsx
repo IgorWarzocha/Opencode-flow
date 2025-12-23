@@ -87,6 +87,17 @@ export const PartRenderer = ({ part, message }: { part: Part; message: Assistant
 const PartBlock = ({ label, content, collapsible, initialOpen }: PartView) => {
   const [isOpen, setIsOpen] = useState(initialOpen ?? false);
 
+  // Ensure label is a string
+  const safeLabel = typeof label === "string" ? label : String(label);
+
+  // Ensure content is safe to render
+  const safeContent =
+    typeof content === "string"
+      ? content
+      : typeof content === "object" && content !== null
+        ? JSON.stringify(content, null, 2)
+        : String(content ?? "");
+
   useEffect(() => {
     // Sync external open state if provided
     if (initialOpen !== undefined) {
@@ -103,10 +114,10 @@ const PartBlock = ({ label, content, collapsible, initialOpen }: PartView) => {
       >
         <summary className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-transparent group-open:border-border/60 cursor-pointer select-none hover:text-foreground transition-colors flex items-center gap-1">
           <span className="inline-block transition-transform group-open:rotate-90">▸</span>
-          {label}
+          {safeLabel}
         </summary>
         <pre className="px-2 py-1 whitespace-pre-wrap font-mono text-[11px]">
-          {content || <span className="animate-pulse">...</span>}
+          {safeContent || <span className="animate-pulse">...</span>}
         </pre>
       </details>
     );
@@ -114,13 +125,13 @@ const PartBlock = ({ label, content, collapsible, initialOpen }: PartView) => {
 
   return (
     <div className="rounded-md border border-border/60 bg-muted/20">
-      {label !== "text" && (
+      {safeLabel !== "text" && (
         <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/60">
-          {label}
+          {safeLabel}
         </div>
       )}
       <pre className="px-2 py-1 whitespace-pre-wrap font-mono text-[11px]">
-        {content || <span className="animate-pulse">...</span>}
+        {safeContent || <span className="animate-pulse">...</span>}
       </pre>
     </div>
   );

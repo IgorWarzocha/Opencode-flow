@@ -4,6 +4,7 @@
  */
 
 export { OpenCodeAssistantPanel } from "./panel.tsx";
+export { useAssistantData } from "./use-assistant-data";
 export { PartRenderer } from "./part-renderer";
 export { AgentSelector } from "./agent-selector";
 export { ModelSelector } from "./model-selector";

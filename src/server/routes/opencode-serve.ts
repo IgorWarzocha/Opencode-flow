@@ -5,6 +5,7 @@
 import type { Session, Message, Part, TextPart } from "@opencode-ai/sdk/v2";
 import { getWorkspaceRoot } from "../workspace.ts";
 import { getServeClient } from "../opencode/opencode.ts";
+import { createSession as createLocalSession } from "../session/session.ts";
 
 /** DTO returned to the frontend for session info. */
 type AssistantSession = {
@@ -188,7 +189,7 @@ export const opencodeServeRoutes = {
       return Response.json(mapped);
     },
     async POST(req: Request) {
-      const body = (await req.json()) as { title?: string };
+      const body = (await req.json()) as { title?: string; baseBranch?: string };
       const { client, error: clientError } = await getServeClient();
       if (!client) {
         return new Response(clientError ?? "OpenCode serve unavailable.", { status: 502 });
@@ -200,6 +201,18 @@ export const opencodeServeRoutes = {
       if (error || !data) {
         return new Response(error ?? "Failed to create session.", { status: 502 });
       }
+
+      // Sync local worktree
+      if (data.id) {
+        try {
+          const options: { id: string; baseBranch?: string } = { id: data.id };
+          if (body.baseBranch) options.baseBranch = body.baseBranch;
+          await createLocalSession(data.title, {}, options);
+        } catch (e) {
+          console.error("Failed to create local session worktree:", e);
+        }
+      }
+
       return Response.json(toAssistantSession(data));
     },
   },

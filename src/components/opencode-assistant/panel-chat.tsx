@@ -71,7 +71,10 @@ export function PanelChat({ messages, isLoading, error, agents }: PanelChatProps
                 : "bg-muted/50 border border-border/50 text-foreground rounded-bl-none"
             }`}
           >
-            {message.parts.length === 0 && (message.text || "")}
+            {message.parts.length === 0 &&
+              (typeof message.text === "string"
+                ? message.text
+                : JSON.stringify(message.text || ""))}
             {message.parts.length > 0 && (
               <div className="space-y-2">
                 {message.parts.map((part) => (

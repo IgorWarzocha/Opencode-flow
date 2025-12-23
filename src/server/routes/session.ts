@@ -17,11 +17,14 @@ export const sessionRoutes = {
       return Response.json(listSessions());
     },
     async POST(req: Request) {
-      const { name, context } = (await req.json()) as {
+      const { name, context, baseBranch } = (await req.json()) as {
         name: string;
         context?: Record<string, unknown>;
+        baseBranch?: string;
       };
-      return Response.json(await createSession(name, context));
+      const options: { baseBranch?: string } = {};
+      if (baseBranch) options.baseBranch = baseBranch;
+      return Response.json(await createSession(name, context, options));
     },
   },
 
